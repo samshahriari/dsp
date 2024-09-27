@@ -11,6 +11,7 @@ from sktime.datasets import load_from_tsfile_to_dataframe
 
 logger = logging.getLogger(__name__)
 
+
 def load(config):
     # Build data
     Data = {}
@@ -35,11 +36,25 @@ def load(config):
         logger.info("{} samples will be used for testing".format(len(Data['test_label'])))
 
     else:
-        
+
         logger.info("Loading and preprocessing data ...")
+        # get file path
         train_file = config['data_dir'] + "/" + problem + "_TRAIN.ts"
         test_file = config['data_dir'] + "/" + problem + "_TEST.ts"
+
+        # x sparas en dataframe och y sparas i en lista med namngivna labels
+        # varje kolumn är en dim
+        # varje rad är en tidsserie över alla dimensioner
+        # ett element är en tidsserie över en dimension
+        #    d1  d2  d3  d4
+        # s1 []  []  []  []
+        # s2 []  []  []  []
+        # s3 []  []  []  []
+        # s4 []  []  []  []
         train_df, y_train = load_from_tsfile_to_dataframe(train_file)
+        # print(train_df.info())
+        # import sys
+        # sys.exit(0)
         test_df, y_test = load_from_tsfile_to_dataframe(test_file)
 
         y_train = LabelEncoder().fit_transform(y_train)
@@ -187,9 +202,8 @@ def mean_std_transform(train_data, mean, std):
     return (train_data - mean) / std
 
 
-
 def data_loader(config):
-    if config['problem'] =='TUEV':
+    if config['problem'] == 'TUEV':
         Data = tuev_loader(config)
     else:
         Data = load(config)
@@ -204,7 +218,7 @@ def tuev_loader(config):
     Data['val_data'] = np.load(data_path + '/' + 'val_data.npy', allow_pickle=True)
     Data['val_label'] = np.load(data_path + '/' + 'val_label.npy', allow_pickle=True)
     Data['All_train_data'] = np.load(data_path + '/' + 'All_train_data.npy', allow_pickle=True)
-    Data['All_train_label'] =np.load(data_path + '/' + 'All_train_label.npy', allow_pickle=True)
+    Data['All_train_label'] = np.load(data_path + '/' + 'All_train_label.npy', allow_pickle=True)
     Data['test_data'] = np.load(data_path + '/' + 'test_data.npy', allow_pickle=True)
     Data['test_label'] = np.load(data_path + '/' + 'test_label.npy', allow_pickle=True)
     Data['max_len'] = Data['train_data'].shape[1]
@@ -287,5 +301,3 @@ class dataset_class(Dataset):
 
     def __len__(self):
         return len(self.labels)
-    
-    
