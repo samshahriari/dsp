@@ -93,6 +93,8 @@ def pre_training(config, Data):
     best_aggr_metrics_test, all_metrics = best_test_evaluator.evaluate(keep_all=True)
     all_metrics['LGR_ACC'] = acc_test
     all_metrics['LP_LGR_ACC'] = LP_acc_test
+    create_classifying_model(train_repr, train_labels, test_repr, test_labels)  # TODO this should probably be moved
+
     return best_aggr_metrics_test, all_metrics
 
 
