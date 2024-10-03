@@ -7,6 +7,9 @@ import os
 import mne
 import time
 
+from sklearn.model_selection import StratifiedGroupKFold
+
+
 class CustomDataLoader:
     def __init__(self, parameters):
         self.parameters = parameters
@@ -98,6 +101,7 @@ class CustomDataLoader:
                 item['data'][channel] = item['data'][channel].clip(lower=clip_lower, upper=clip_upper)
                 
         return df
+    
 
     def normalize_data(self, df):
         print("Normalizing data...")
@@ -128,17 +132,52 @@ class CustomDataLoader:
                 start_index = window_index * datapoints_per_window
                 end_index = start_index + datapoints_per_window
                 windowed_df = subject['data'].iloc[start_index:end_index]
-                new_subject_id = f"{subject['subject_id']}-{window_index + 1}"
                 
                 # Create a new dictionary for the windowed segment
                 windowed_data.append({
-                    'subject_id': new_subject_id,
+                    'subject_id': subject['subject_id'],
                     'data': windowed_df,
                     'Y': subject['Y']
                 })
                 
+                
         return windowed_data
+    
+    def format_data(self, df):
+        print("Formatting data...")
+        column_names = parameters['channels'][1:] #Förutsatt att time är första kanalen
+        empty_df = []
+        y_df = []
 
+        for item in df:
+            row = []
+            
+            for channel in column_names:
+                temp = item['data'][channel].to_numpy()
+                row.append(temp)
+            row.append(item['subject_id'])
+            row.append(item['Y'])
+            empty_df.append(row)
+            
+        column_names.append('subject_id')   
+        column_names.append('Y')
+        df_x = pd.DataFrame(empty_df, columns=column_names)
+        random_sample_per_category = df_x.groupby('subject_id').apply(lambda x: x.sample(parameters['samples_per_subject'])).reset_index(drop=True)
+        df_y = random_sample_per_category['Y']
+        df_x = random_sample_per_category.drop(columns=['Y'])
+        
+        sgkf = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)
+
+        groups = df_x['subject_id']
+        # Perform the split
+        for train_idx, test_idx in sgkf.split(df_x, df_y, groups=groups):
+            X_train, X_test = df_x.iloc[train_idx], df_x.iloc[test_idx]
+            y_train, y_test = df_y.iloc[train_idx], df_y.iloc[test_idx]
+            break  # Only need the first split
+        
+        return X_train, X_test, y_train, y_test
+    
+    
     def process_data(self):
         print("Starting dataloader...")
         print("==================================")
@@ -151,11 +190,12 @@ class CustomDataLoader:
         df_without_peaks_and_valleys = self.remove_peaks_and_valleys(df_trimmed)
         df_normalized = self.normalize_data(df_without_peaks_and_valleys)
         df_windowed = self.window_data(df_normalized)
+        X_train, X_test, y_train, y_test = self.format_data(df_windowed)
         
         end_time= time.time()
         
         print(f"Data processed in: {end_time - start_time} seconds")
-        return df_windowed
+        return X_train, X_test, y_train, y_test
 
 if __name__ == "__main__":
     parameters = {
@@ -170,16 +210,29 @@ if __name__ == "__main__":
         "train_size": 0.8,
         "channels": ['time', 'Fp1', 'Fp2', 'Cz', 'Pz'] , # Namn på kanalerna som
         "window_size": 10, # Window size i sekunder
-        "random_seed": 42
+        "random_seed": 42,
+        "samples_per_subject": 2
     }
     data_loader = CustomDataLoader(parameters)
-    df = data_loader.process_data()
-    print("Subject 1, first window")
-    print(df[0]['subject_id'])
-    print(df[0]['data'].head())
-    print(df[0]['data'].tail())
-        
-    print("Subject 1, second window")
-    print(df[1]['subject_id'])
-    print(df[0]['data'].head())
-    print(df[0]['data'].tail())
+    X_train, X_test, y_train, y_test = data_loader.process_data()
+    
+    print(X_train)
+    print(X_test)
+    print(y_train)
+    print(y_test)
+    
+    X_train.to_csv('./X_train.csv', index=False)
+    X_test.to_csv('./X_test.csv', index=False)
+    y_train.to_csv('./y_train.csv', index=False)
+    y_test.to_csv('./y_test.csv', index=False)
+    
+    
+    
+    """
+    [
+        {subject_id: 'sub-001-1', data: pd.DataFrame , Y: 'A'},
+        {subject_id: 'sub-001-2', data: pd.DataFrame , Y: 'A'},
+    
+    ]
+    """
+
