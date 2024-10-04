@@ -7,7 +7,7 @@ from sklearn.metrics import confusion_matrix
 
 def create_classifying_model(X_train, y_train, X_test, y_test):
     # Step 1: Initialize the Ridge Classifier
-    classifier = ExtraTreesClassifier()
+    classifier = SVC()
 
     # Step 2: Train the model with the training data
     classifier.fit(X_train.cpu(), y_train)
@@ -22,6 +22,7 @@ def create_classifying_model(X_train, y_train, X_test, y_test):
     # Step 5: Confusion matrix
     conf_matrix = confusion_matrix(y_test, y_pred)
 
+    print("printing results")
     # Step 6: Print results
     print(f"Accuracy: {accuracy:.4f}")
     print("Classification Report:")
@@ -29,5 +30,7 @@ def create_classifying_model(X_train, y_train, X_test, y_test):
 
     print("Confusion Matrix:")
     print(conf_matrix)
+    print("stopped printing results")
+
     # Optionally return the model and predictions for further analysis
     return classifier, y_pred

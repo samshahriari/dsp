@@ -53,6 +53,7 @@ def pre_training(config, Data):
     train_repr, train_labels = S2V_make_representation(SS_Encoder, train_loader)  # this is how the data is embedded
 
     test_repr, test_labels = S2V_make_representation(SS_Encoder, test_loader)
+    # create_classifying_model(train_repr, train_labels, test_repr, test_labels)  # TODO this should probably be moved
     clf = fit_lr(train_repr.cpu().detach().numpy(), train_labels.cpu().detach().numpy())
     y_hat = clf.predict(test_repr.cpu().detach().numpy())
     LP_acc_test = accuracy_score(test_labels.cpu().detach().numpy(), y_hat)

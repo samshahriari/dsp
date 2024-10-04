@@ -62,7 +62,7 @@ def create_dirs(dirs):
 
 
 # -------------------------------------------- Input and Output --------------------------------------------------------
-parser.add_argument('--dataset', default='Benchmarks', choices={'Benchmarks', 'UEA', 'UCR'})
+parser.add_argument('--dataset', default='Benchmarks')
 parser.add_argument('--output_dir', default='Results',
                     help='Root output directory. Must exist. Time-stamped directories will be created inside.')
 parser.add_argument('--Norm', type=bool, default=False, help='Data Normalization')
@@ -90,8 +90,3 @@ parser.add_argument('--gpu', type=int, default='0', help='GPU index, -1 for CPU'
 parser.add_argument('--console', action='store_true', help="Optimize printout for console output; otherwise for file")
 parser.add_argument('--seed', default=1234, type=int, help='Seed used for splitting sets')
 args = parser.parse_args()
-
-
-
-
-
