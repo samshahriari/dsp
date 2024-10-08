@@ -34,14 +34,16 @@ def pre_training(config, Data):
 
     # --------------------------------- Load Data ---------------------------------------------------------------------
     train_dataset = dataset_class(Data['train_data'], Data['train_label'], config)
+    val_dataset = dataset_class(Data['val_data'], Data['val_label'], config)
     test_dataset = dataset_class(Data['test_data'], Data['test_label'], config)
 
     train_loader = DataLoader(dataset=train_dataset, batch_size=config['batch_size'], shuffle=True, pin_memory=True)
+    val_loader = DataLoader(dataset=val_dataset, batch_size=config['batch_size'], shuffle=True, pin_memory=True)
     test_loader = DataLoader(dataset=test_dataset, batch_size=config['batch_size'], shuffle=True, pin_memory=True)
 
     # --------------------------------- Self Superviseed Training ------------------------------------------------------
     # Create and train the embedding model
-    SS_trainer = S2V_SS_Trainer(model, train_loader, test_loader, config, print_conf_mat=False)
+    SS_trainer = S2V_SS_Trainer(model, train_loader, test_loader, config, val_loader, print_conf_mat=False)
     save_path = os.path.join(config['save_dir'], config['problem'] + '_model_{}.pth'.format('last'))
     SS_train_runner(config, model, SS_trainer, save_path)
 

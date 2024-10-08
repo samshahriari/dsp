@@ -25,11 +25,11 @@ NEG_METRICS = {'loss'}  # metrics for which "better" is less
 
 class BaseTrainer(object):
 
-    def __init__(self, model, train_loader, test_loader, config, optimizer=None, l2_reg=None, print_interval=10,
-                 console=True, print_conf_mat=False):
+    def __init__(self, model, train_loader, test_loader, config, val_loader, optimizer=None, l2_reg=None, print_interval=10, console=True, print_conf_mat=False):
         self.model = model
         self.train_loader = train_loader
         self.test_loader = test_loader
+        self.val_loader = val_loader
         self.device = config['device']
         self.optimizer = config['optimizer']
         self.loss_module = config['loss_module']
@@ -40,7 +40,7 @@ class BaseTrainer(object):
         self.epoch_metrics = OrderedDict()
         self.save_path = config['output_dir']
         self.problem = config['problem']
-        
+
     def train_epoch(self, epoch_num=None):
         raise NotImplementedError('Please override in child class')
 
@@ -69,9 +69,11 @@ class S2V_SS_Trainer(BaseTrainer):
         self.sdtw = SoftDTW(use_cuda=True, gamma=0.1)
 
     def train_epoch(self, epoch_num=None):
-        self.model = self.model.train()
-        epoch_loss = 0  # total loss of epoch
-        total_samples = 0  # total samples in epoch
+        self.model.train()
+        epoch_loss = 0  # total training loss of epoch
+        total_samples = 0  # total samples in training epoch
+
+        # Training loop
         for i, batch in enumerate(self.train_loader):
             X, _, IDs = batch
 
@@ -84,29 +86,21 @@ class S2V_SS_Trainer(BaseTrainer):
             Distance_out_f = torch.masked_select(Distance_out_f, mask)
             Distance_out_f = Distance_normalizer(Distance_out_f)
 
-            # X_smooth = moving_average_smooth(X, 3)
-
             Dtw_Distance = cuda_soft_DTW(self.sdtw, X, len(X))
             Dtw_Distance = Distance_normalizer(Dtw_Distance)
 
-            # Euclidean_Distance = Euclidean_Dis(X, len(X))
-            # Euclidean_Distance = Distance_normalizer(Euclidean_Distance)
             X_f = filter_frequencies(X)
-            # X_f = fft.fft2(X, dim=(-2, -1))
             Euclidean_Distance_f = Euclidean_Dis(X_f, len(X_f))
             Euclidean_Distance_f = Distance_normalizer(Euclidean_Distance_f)
 
-            # temporal_loss = torch.nn.functional.mse_loss(Distance_out, Dtw_Distance)
-            # frequency_loss = torch.nn.functional.mse_loss(Distance_out_f, Euclidean_Distance_f)
             temporal_loss = F.smooth_l1_loss(Distance_out, Dtw_Distance)
             frequency_loss = F.smooth_l1_loss(Distance_out_f, Euclidean_Distance_f)
 
             total_loss = temporal_loss + frequency_loss
-            # Zero gradients, perform a backward pass, and update the weights.
+
+            # Backpropagation and optimization
             self.optimizer.zero_grad()
             total_loss.backward()
-
-            # torch.nn.utils.clip_grad_value_(self.model.parameters(), clip_value=1.0)
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=4.0)
             self.optimizer.step()
 
@@ -114,21 +108,56 @@ class S2V_SS_Trainer(BaseTrainer):
                 total_samples += 1
                 epoch_loss += total_loss.item()
 
-        epoch_loss = epoch_loss / total_samples  # average loss per sample for whole epoch
+        epoch_loss /= total_samples  # average training loss per sample for whole epoch
         self.epoch_metrics['epoch'] = epoch_num
         self.epoch_metrics['loss'] = epoch_loss
 
-        if (epoch_num+1) % 5 == 0:
-            self.model.eval()
+        # Validation loop for calculating validation loss
+        val_loss = 0
+        val_samples = 0
+        self.model.eval()  # set model to evaluation mode
+        with torch.no_grad():
+            for i, batch in enumerate(self.val_loader):
+                X, _, IDs = batch
+
+                Distance_out, Distance_out_f = self.model.Pretrain_forward(X.to(self.device))
+                mask = torch.tril(torch.ones_like(Distance_out), diagonal=-1).bool()
+                Distance_out = torch.masked_select(Distance_out, mask)
+                Distance_out = Distance_normalizer(Distance_out)
+
+                Distance_out_f = torch.masked_select(Distance_out_f, mask)
+                Distance_out_f = Distance_normalizer(Distance_out_f)
+
+                Dtw_Distance = cuda_soft_DTW(self.sdtw, X, len(X))
+                Dtw_Distance = Distance_normalizer(Dtw_Distance)
+
+                X_f = filter_frequencies(X)
+                Euclidean_Distance_f = Euclidean_Dis(X_f, len(X_f))
+                Euclidean_Distance_f = Distance_normalizer(Euclidean_Distance_f)
+
+                temporal_loss = F.smooth_l1_loss(Distance_out, Dtw_Distance)
+                frequency_loss = F.smooth_l1_loss(Distance_out_f, Euclidean_Distance_f)
+
+                total_loss = temporal_loss + frequency_loss
+
+                val_samples += 1
+                val_loss += total_loss.item()
+
+        val_loss /= val_samples  # average validation loss per sample for the entire epoch
+        self.epoch_metrics['val_loss'] = val_loss
+
+        # Perform additional evaluation every 5 epochs
+        if (epoch_num + 1) % 5 == 0:
             train_repr, train_labels = S2V_make_representation(self.model, self.train_loader)
             test_repr, test_labels = S2V_make_representation(self.model, self.test_loader)
             clf = fit_lr(train_repr.cpu().detach().numpy(), train_labels.cpu().detach().numpy())
             y_hat = clf.predict(test_repr.cpu().detach().numpy())
             acc_test = accuracy_score(test_labels.cpu().detach().numpy(), y_hat)
             print('Test_acc:', acc_test)
-            result_file = open(self.save_path + '/' + self.problem + '_linear_result.txt', 'a+')
-            print('{0}, {1}, {2}'.format(epoch_num, acc_test, epoch_loss), file=result_file)
-            result_file.close()
+
+            # Logging results to file
+            with open(self.save_path + '/' + self.problem + '_linear_result.txt', 'a+') as result_file:
+                print(f'{epoch_num}, {acc_test}, {epoch_loss}, {val_loss}', file=result_file)
 
         return self.epoch_metrics
 
@@ -254,7 +283,7 @@ def Strain_runner(config, model, trainer, evaluator, path):
 
         aggr_metrics_train = trainer.train_epoch(epoch)  # dictionary of aggregate epoch metrics
         aggr_metrics_val, best_metrics, best_value = validate(evaluator, tensorboard_writer, config, best_metrics,
-                                                                best_value, epoch)
+                                                              best_value, epoch)
         save_best_model(aggr_metrics_val['accuracy'], epoch, model, optimizer, loss_module, path)
         metrics_names, metrics_values = zip(*aggr_metrics_train.items())
         metrics.append(list(metrics_values))
@@ -278,20 +307,35 @@ def SS_train_runner(config, model, trainer, path):
     tensorboard_writer = SummaryWriter('summary')
     metrics = []  # (for validation) list of lists: for each epoch, stores metrics like loss, ...
     save_best_model = utils.SaveBestModel()
-    Total_loss = []
+    train_loss = []
+    val_loss = []
     for epoch in tqdm(range(start_epoch + 1, epochs + 1), desc='Training Epoch', leave=False):
 
         aggr_metrics_train = trainer.train_epoch(epoch)  # dictionary of aggregate epoch metrics
         save_best_model(aggr_metrics_train['loss'], epoch, model, optimizer, loss_module, path)
         metrics_names, metrics_values = zip(*aggr_metrics_train.items())
         metrics.append(list(metrics_values))
-        Total_loss.append(aggr_metrics_train['loss'])
+        train_loss.append(aggr_metrics_train['loss'])
+        val_loss.append(aggr_metrics_train['val_loss'])
         print_str = 'Epoch {} Training Summary: '.format(epoch)
         for k, v in aggr_metrics_train.items():
             tensorboard_writer.add_scalar('{}/train'.format(k), v, epoch)
             print_str += '{}: {:8f} | '.format(k, v)
         logger.info(print_str)
-    # plot_loss(Total_loss,Time_loss,Freq_loss)
+    # plot_loss(train_loss, Time_loss, Freq_loss)
+    import matplotlib.pyplot as plt
+    epochs = range(1, len(train_loss) + 1)
+
+    # Plot the losses
+    plt.figure(figsize=(10, 6))
+    plt.plot(epochs, train_loss, label='Training Loss', color='blue', marker='o')
+    plt.plot(epochs, val_loss, label='Validation Loss', color='red', marker='x')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.title('Training and Validation Loss over Epochs')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
     total_runtime = time.time() - total_start_time
     logger.info("Train Time: {} hours, {} minutes, {} seconds\n".format(*utils.readable_time(total_runtime)))
     return
@@ -430,5 +474,3 @@ def filter_low_frequencies_batch(batch_data, threshold_freq=40):
     filtered_data = fft.ifft2(fft.ifftshift(fft_shifted_filtered), dim=(-2, -1)).real
 
     return filtered_data
-
-
