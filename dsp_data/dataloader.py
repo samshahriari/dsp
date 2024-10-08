@@ -9,6 +9,8 @@ import time
 
 from sklearn.model_selection import StratifiedGroupKFold
 
+import warnings
+warnings.simplefilter("ignore", category=RuntimeWarning)
 
 class CustomDataLoader:
     def __init__(self, parameters):
