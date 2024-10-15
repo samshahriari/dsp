@@ -3,12 +3,9 @@ import os
 from models.model_factory import Model_factory
 from models.optimizers import get_optimizer, get_loss_module
 from torch.utils.data import DataLoader
-from Dataset.dataloader import dataset_class
+from Dataset.EEGdataloader import dataset_class
 from models.Series2Vec.S2V_training import *
 
-
-from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
-from sklearn.metrics import confusion_matrix
 
 from utils.utils import load_model
 
@@ -50,7 +47,7 @@ def pre_training(config, Data):
     # --------------------------------------------- Downstream Task (classification)   ---------------------------------
     # ---------------------- Loading the model and freezing layers except FC layer -------------------------------------
     # here begins fine tuning??
-    SS_Encoder, optimizer, start_epoch = load_model(model, save_path, config['optimizer'])  # Loading the model
+    SS_Encoder, optimizer, start_epoch = load_model(model, save_path, config['optimizer'])  # Loading the model. TODO this should be saved to disk
     SS_Encoder.to(config['device'])
     train_repr, train_labels = S2V_make_representation(SS_Encoder, train_loader)  # this is how the data is embedded
 
@@ -62,6 +59,7 @@ def pre_training(config, Data):
 
 
 def supervised(config, Data):
+    # TODO this should be removed
     model = Model_factory(config, Data)
     optim_class = get_optimizer("RAdam")
     config['optimizer'] = optim_class(model.parameters(), lr=config['lr'], weight_decay=0)

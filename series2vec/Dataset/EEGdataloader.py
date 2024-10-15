@@ -1,12 +1,21 @@
 import os
 import numpy as np
 import logging
-import random
+import torch
 from sklearn import model_selection
+from torch.utils.data import Dataset
+import random
 from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sktime.utils.load_data import load_from_tsfile_to_dataframe
 
+import pandas as pd
+import re
 logger = logging.getLogger(__name__)
+
+
+def convert_to_series(cell):
+    formatted_cell = re.sub(r'(?<=\d)\s+(?=-?\d)', ', ', cell.strip())
+    cell_as_list = eval(formatted_cell)
+    return pd.Series(cell_as_list)
 
 
 def load(config):
@@ -33,16 +42,26 @@ def load(config):
         logger.info("{} samples will be used for testing".format(len(Data['test_label'])))
 
     else:
-        
-        logger.info("Loading and preprocessing data ...")
-        train_file = config['data_dir'] + "/" + problem + "_TRAIN.ts"
-        test_file = config['data_dir'] + "/" + problem + "_TEST.ts"
-        train_df, y_train = load_from_tsfile_to_dataframe(train_file)
-        test_df, y_test = load_from_tsfile_to_dataframe(test_file)
+        import pandas as pd
+        # # x sparas en dataframe och y sparas i en lista med namngivna labels
+        # # varje kolumn är en dim
+        # # varje rad är en tidsserie över alla dimensioner
+        # # ett element är en tidsserie över en dimension
+        # #    d1  d2  d3  d4
+        # # s1 []  []  []  []
+        # # s2 []  []  []  []
+        # # s3 []  []  []  []
+        # # s4 []  []  []  []
+
+        train_df = pd.read_csv(config['data_dir'] + "/" + "X_train.csv").drop("subject_id", axis=1)
+        train_df = train_df.applymap(convert_to_series)
+        y_train = pd.read_csv(config['data_dir'] + "/" + "y_train.csv").to_numpy()
+        test_df = pd.read_csv(config['data_dir'] + "/" + "X_test.csv").drop("subject_id", axis=1)
+        test_df = test_df.applymap(convert_to_series)
+        y_test = pd.read_csv(config['data_dir'] + "/" + "y_test.csv").to_numpy()
 
         y_train = LabelEncoder().fit_transform(y_train)
         y_test = LabelEncoder().fit_transform(y_test)
-
         train_lengths = train_df.applymap(lambda x: len(x)).values
         test_lengths = test_df.applymap(lambda x: len(x)).values
         train_max_seq_len = int(np.max(train_lengths[:, 0]))
@@ -51,13 +70,6 @@ def load(config):
 
         X_train = process_ts_data(train_df, max_seq_len, normalise=False)
         X_test = process_ts_data(test_df, max_seq_len, normalise=False)
-
-        if config['Norm']:
-            mean, std = mean_std(X_train)
-            mean = np.repeat(mean, max_seq_len).reshape(X_train.shape[1], max_seq_len)
-            std = np.repeat(std, max_seq_len).reshape(X_train.shape[1], max_seq_len)
-            X_train = mean_std_transform(X_train, mean, std)
-            X_test = mean_std_transform(X_test, mean, std)
 
         Data['max_len'] = max_seq_len
         Data['All_train_data'] = X_train
@@ -164,22 +176,34 @@ def process_ts_data(x, max_len, vary_len: str = "suffix-noise", normalise: bool 
     output = np.zeros((num_instances, num_dim, max_len), dtype=np.float64)
     for i in range(num_dim):
         for j in range(num_instances):
-            lengths = len(x[columns[i]][j].values)
+            lengths = len(x[columns[i]][j])
             end = min(lengths, max_len)
             output[j, i, :end] = x[columns[i]][j].values
         output[:, i, :] = fill_missing(output[:, i, :], max_len, vary_len, normalise)
     return output
 
 
-def mean_std(train_data):
-    m_len = np.mean(train_data, axis=2)
-    mean = np.mean(m_len, axis=0)
-
-    s_len = np.std(train_data, axis=2)
-    std = np.max(s_len, axis=0)
-
-    return mean, std
+def data_loader(config):
+    return load(config)
 
 
-def mean_std_transform(train_data, mean, std):
-    return (train_data - mean) / std
+class dataset_class(Dataset):
+    def __init__(self, data, label, config):
+        super(dataset_class, self).__init__()
+
+        self.model_type = config['Model_Type'][0]
+        self.feature = data
+        self.labels = label.astype(np.int32)
+
+    def __getitem__(self, ind):
+        x = self.feature[ind]
+        x = x.astype(np.float32)
+        y = self.labels[ind]  # (num_labels,) array
+
+        data = torch.tensor(x)
+        label = torch.tensor(y)
+
+        return data, label, ind
+
+    def __len__(self):
+        return len(self.labels)

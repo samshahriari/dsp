@@ -7,11 +7,8 @@ from sklearn.metrics import accuracy_score, classification_report
 
 
 def convert_to_series(cell):
-    # Fix the string by inserting commas between numbers
-    formatted_cell = re.sub(r'(?<=\d)\s+(?=-?\d)', ', ', cell.strip())  # Insert commas between numbers
-    # Now we can safely evaluate it as a list
-    cell_as_list = eval(formatted_cell)  # or use ast.literal_eval if the strings are safe
-    # Convert the list into a pandas Series
+    formatted_cell = re.sub(r'(?<=\d)\s+(?=-?\d)', ', ', cell.strip())
+    cell_as_list = eval(formatted_cell)
     return pd.Series(cell_as_list)
 
 
