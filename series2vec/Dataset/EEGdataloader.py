@@ -36,6 +36,7 @@ def load(config):
         Data['val_label'] = Data_npy.item().get('val_label')
         Data['test_data'] = Data_npy.item().get('test_data')
         Data['test_label'] = Data_npy.item().get('test_label')
+        Data['test_subject'] = Data_npy.item().get('test_subject')
 
         logger.info("{} samples will be used for training".format(len(Data['train_label'])))
         logger.info("{} samples will be used for validation".format(len(Data['val_label'])))
@@ -57,6 +58,7 @@ def load(config):
         train_df = train_df.applymap(convert_to_series)
         y_train = pd.read_csv(config['data_dir'] + "/" + "y_train.csv").to_numpy()
         test_df = pd.read_csv(config['data_dir'] + "/" + "X_test.csv").drop("subject_id", axis=1)
+        test_subject_id = pd.read_csv(config['data_dir'] + "/" + "X_test.csv")['subject_id'].to_list()
         test_df = test_df.applymap(convert_to_series)
         y_test = pd.read_csv(config['data_dir'] + "/" + "y_test.csv").to_numpy()
 
@@ -90,6 +92,7 @@ def load(config):
         Data['val_label'] = val_label
         Data['test_data'] = X_test
         Data['test_label'] = y_test
+        Data['test_subject'] = test_subject_id
 
         np.save(config['data_dir'] + "/" + problem, Data, allow_pickle=True)
 

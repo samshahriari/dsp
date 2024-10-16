@@ -36,7 +36,7 @@ def pre_training(config, Data):
 
     train_loader = DataLoader(dataset=train_dataset, batch_size=config['batch_size'], shuffle=True, pin_memory=True)
     val_loader = DataLoader(dataset=val_dataset, batch_size=config['batch_size'], shuffle=True, pin_memory=True)
-    test_loader = DataLoader(dataset=test_dataset, batch_size=config['batch_size'], shuffle=True, pin_memory=True)
+    test_loader = DataLoader(dataset=test_dataset, batch_size=config['batch_size'], shuffle=False, pin_memory=True)
 
     # --------------------------------- Self Superviseed Training ------------------------------------------------------
     # Create and train the embedding model
@@ -53,7 +53,7 @@ def pre_training(config, Data):
 
     test_repr, test_labels = S2V_make_representation(SS_Encoder, test_loader)
 
-    create_classifying_model(train_repr, train_labels, test_repr, test_labels)  # TODO this should probably be moved
+    create_classifying_model(train_repr, train_labels, test_repr, test_labels, Data['test_subject'])  # TODO this should probably be moved
 
     return  # best_aggr_metrics_test, all_metrics
 
