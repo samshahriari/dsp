@@ -13,7 +13,9 @@ def convert_to_series(cell):
 
 
 def main():
+    # task = 'moreChannels'
     task = 'newEEG3_50'
+    # task = 'EEGage'
     train_df = pd.read_csv('./Dataset/' + task + "/" + "X_train.csv").drop("subject_id", axis=1)
     train_df = train_df.applymap(convert_to_series)
     y_train = pd.read_csv('./Dataset/' + task + "/" + "y_train.csv").to_numpy().flatten()
@@ -44,16 +46,19 @@ def main():
     prev_subject_id = ""
     row_index = -1
     sub_id = []
+    conv = {'A': 0, 'C': 1, 'F': 2}
+    if "age" in task:
+        conv = {'F': 0, 'M': 1}
+
     for i, subject_id in enumerate(test_subject_id):
         if prev_subject_id != subject_id:
             prev_subject_id = subject_id
             row_index += 1
-            y_true_subject.append(y_test[i])
+            y_true_subject.append(conv[y_test[i]])
             sub_id.append(subject_id)
-        predicted = y_pred[i]
+        predicted = conv[y_pred[i]]
         subject_count[row_index][predicted] += 1
     y_pred_subject = np.argmax(subject_count, axis=1)
-    from torch.nn.functional import sigmoid
     df1 = pd.DataFrame({'subject_id': sub_id, 'y_test': y_true_subject, 'y_pred': y_pred_subject})
     df = pd.concat([df1, pd.DataFrame(subject_count)], axis=1)
     print(df)
