@@ -136,12 +136,13 @@ class CustomDataLoader:
                 if channel == 'time':
                     continue
                 # Calculate mean and standard deviation of the channel
-                mean_value = item['data'][channel].mean()
-                std_dev = item['data'][channel].std()
+                #mean_value = item['data'][channel].mean()
+                #std_dev = item['data'][channel].std()
 
                 # Standardize: (value - mean) / std_dev
-                item['data'][channel] = scaler.fit_transform(item['data'][channel].to_numpy().reshape(-1,1))
-                
+                # item['data'][channel] = scaler.fit_transform(item['data'][channel].to_numpy().reshape(-1,1))
+                item['data'].loc[:, channel] = scaler.fit_transform(item['data'][channel].to_numpy().reshape(-1, 1))
+
         return df
 
     def window_data(self, df):
@@ -188,7 +189,7 @@ class CustomDataLoader:
         column_names.append('subject_id')   
         column_names.append('Y')
         df_x = pd.DataFrame(empty_df, columns=column_names)
-        random_sample_per_category = df_x.groupby('subject_id').apply(lambda x: x.sample(parameters['samples_per_subject'])).reset_index(drop=True)
+        random_sample_per_category = df_x.groupby('subject_id').apply(lambda x: x.sample(min(parameters['samples_per_subject'],len(x)))).reset_index(drop=True)
         df_y = random_sample_per_category['Y']
         df_x = random_sample_per_category.drop(columns=['Y'])
         
@@ -229,15 +230,15 @@ if __name__ == "__main__":
         "minutes_to_remove_beginning": 2,
         "minutes_to_remove_end": 2,
         "normalize": True,
-        "num_A": 15, # Antal personer med Alzheimers
-        "num_F": 0, # Antal personer med Frontotemporal demens
-        "num_C": 15, # Antal personer från kontrollgruppen
+        "num_A": 35, # Antal personer med Alzheimers
+        "num_F": 23, # Antal personer med Frontotemporal demens
+        "num_C": 27, # Antal personer från kontrollgruppen
         "test_size": 0.2,
         "train_size": 0.8,
-        "channels": ['time', 'Fp1', 'Fp2', 'Cz', 'Pz'] , # Namn på kanalerna som
-        "window_size": 2, # Window size i sekunder
+        "channels": ['time', 'Cz', 'T5', 'C4', 'T3', 'Pz', 'P4', 'P3'] , # Namn på kanalerna som
+        "window_size": .5, # Window size i sekunder
         "random_seed": 42,
-        "samples_per_subject": 2
+        "samples_per_subject": 100
     }
     
     data_loader = CustomDataLoader(parameters)
