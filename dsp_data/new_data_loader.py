@@ -197,10 +197,17 @@ class CustomDataLoader:
 
         groups = df_x['subject_id']
         # Perform the split
+        fold = 0
         for train_idx, test_idx in sgkf.split(df_x, df_y, groups=groups):
+            fold+=1
+
             X_train, X_test = df_x.iloc[train_idx], df_x.iloc[test_idx]
             y_train, y_test = df_y.iloc[train_idx], df_y.iloc[test_idx]
-            break  # Only need the first split
+            X_train.to_csv(f'./{fold}/X_train.csv', index=False)
+            X_test.to_csv(f'./{fold}/X_test.csv', index=False)
+            y_train.to_csv(f'./{fold}/y_train.csv', index=False)
+            y_test.to_csv(f'./{fold}/y_test.csv', index=False)
+            # break  # Only need the first split
         
         return X_train, X_test, y_train, y_test
     
@@ -235,10 +242,13 @@ if __name__ == "__main__":
         "num_C": 27, # Antal personer från kontrollgruppen
         "test_size": 0.2,
         "train_size": 0.8,
-        "channels": ['time', 'Cz', 'T5', 'C4', 'T3', 'Pz', 'P4', 'P3'] , # Namn på kanalerna som
-        "window_size": .5, # Window size i sekunder
+        # "channels": ['time', 'Fp1','Cz','Pz','T5'],# 'P4', 'P3'] , # Namn på kanalerna som
+        # "channels": ['time', 'Fp1','Fp2','Cz','Pz',],# 'P4', 'P3'] , # Namn på kanalerna som
+        "channels": ['time','Fp1', 'Cz', 'T5', 'C4', 'T3'],#','F8' ],#'Pz', 'P4', 'P3'] , # Namn på kanalerna som
+        "window_size": 2, # Window size i sekunder
         "random_seed": 42,
-        "samples_per_subject": 100
+        "samples_per_subject": 50
+        #CzT5C4T3PzP4P3
     }
     
     data_loader = CustomDataLoader(parameters)
